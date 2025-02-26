@@ -12,7 +12,7 @@ app.use(rateLimit({
     windowMs: 60 * 1000, // 1 minute
     max: 100, // 100 requests per minute
     message: { error: 'Too many requests, retry after 60 seconds' },
-    headers: true // Sends retry info
+    headers: true
 }));
 
 // Helper functions
@@ -51,6 +51,11 @@ const generateProductPool = (count) => {
     return products;
 };
 
+// Root route
+app.get('/', (req, res) => {
+    res.json({ message: 'Welcome to the Synthetic Data API! Visit /docs for documentation.', docs: 'https://synthetic-data-api.onrender.com/docs' });
+});
+
 // /docs endpoint
 app.get('/docs', (req, res) => {
     const docs = {
@@ -65,7 +70,7 @@ app.get('/docs', (req, res) => {
                     locale: 'e.g., en, fr, es, de (default en)',
                     seed: 'Number to fix randomness'
                 },
-                example: 'https://synthetic-data-api.onrender.com//users?count=2&locale=fr&seed=123'
+                example: 'https://synthetic-data-api.onrender.com/users?count=2&locale=fr&seed=123'
             },
             '/transactions': {
                 description: 'Generate synthetic transactions with user/product links',
@@ -109,42 +114,59 @@ app.get('/docs', (req, res) => {
     res.json(docs);
 });
 
-// /users endpoint
+// /users endpoint (simplified streaming logic for reliability)
 app.get('/users', (req, res) => {
     try {
         setSeed(req);
         const count = getCount(req.query.count);
         if (isNaN(count)) throw new Error('Invalid count');
-        const fields = req.query.fields ? req.query.fields.split(',') : ['name', 'email', 'age', 'address'];
+        const fields = req.query.fields ? req.query.fields.split(',').filter(f => ['name', 'email', 'age', 'address', 'phone', 'job'].includes(f)) : ['name', 'email', 'age', 'address'];
         const format = req.query.format || 'json';
         const ageRange = req.query.ageRange ? req.query.ageRange.split('-').map(Number) : [18, 80];
         if (ageRange.length !== 2 || isNaN(ageRange[0]) || isNaN(ageRange[1])) throw new Error('Invalid ageRange');
         const locale = req.query.locale || 'en';
         faker.locale = locale;
 
-        if (format === 'json' && count > 1000) {
+        const users = [];
+        for (let i = 0; i < count; i++) {
+            const user = {};
+            if (fields.includes('name')) user.name = faker.person.fullName();
+            if (fields.includes('email')) user.email = faker.internet.email();
+            if (fields.includes('age')) user.age = faker.number.int({ min: ageRange[0], max: ageRange[1] });
+            if (fields.includes('address')) {
+                user.address = {
+                    street: faker.location.streetAddress(),
+                    city: faker.location.city(),
+                    country: faker.location.country(),
+                    zipCode: faker.location.zipCode()
+                };
+            }
+            if (fields.includes('phone')) user.phone = faker.phone.number();
+            if (fields.includes('job')) {
+                const age = user.age || faker.number.int({ min: ageRange[0], max: ageRange[1] });
+                user.job = age < 30 ? faker.person.jobType() : faker.person.jobTitle();
+            }
+            users.push(user);
+        }
+
+        if (format === 'csv') {
+            let csv = fields.join(',') + '\n';
+            users.forEach(u => {
+                const row = fields.map(f => {
+                    if (f === 'address') return `${u.address?.street || ''},${u.address?.city || ''},${u.address?.country || ''}`;
+                    return u[f] || '';
+                }).join(',');
+                csv += row + '\n';
+            });
+            res.header('Content-Type', 'text/csv');
+            res.send(csv);
+        } else if (count > 1000) {
             const usersStream = () => {
                 let i = 0;
                 return {
                     next: () => {
                         if (i >= count) return null;
-                        const user = {};
-                        if (fields.includes('name')) user.name = faker.person.fullName();
-                        if (fields.includes('email')) user.email = faker.internet.email();
-                        if (fields.includes('age')) user.age = faker.number.int({ min: ageRange[0], max: ageRange[1] });
-                        if (fields.includes('address')) {
-                            user.address = {
-                                street: faker.location.streetAddress(),
-                                city: faker.location.city(),
-                                country: faker.location.country(),
-                                zipCode: faker.location.zipCode()
-                            };
-                        }
-                        if (fields.includes('phone')) user.phone = faker.phone.number();
-                        if (fields.includes('job')) {
-                            const age = user.age || faker.number.int({ min: ageRange[0], max: ageRange[1] });
-                            user.job = age < 30 ? faker.person.jobType() : faker.person.jobTitle();
-                        }
+                        const user = users[i];
                         i++;
                         return user;
                     }
@@ -153,41 +175,7 @@ app.get('/users', (req, res) => {
             res.setHeader('Content-Type', 'application/json');
             new JsonStreamStringify(usersStream()).pipe(res);
         } else {
-            const users = [];
-            for (let i = 0; i < count; i++) {
-                const user = {};
-                if (fields.includes('name')) user.name = faker.person.fullName();
-                if (fields.includes('email')) user.email = faker.internet.email();
-                if (fields.includes('age')) user.age = faker.number.int({ min: ageRange[0], max: ageRange[1] });
-                if (fields.includes('address')) {
-                    user.address = {
-                        street: faker.location.streetAddress(),
-                        city: faker.location.city(),
-                        country: faker.location.country(),
-                        zipCode: faker.location.zipCode()
-                    };
-                }
-                if (fields.includes('phone')) user.phone = faker.phone.number();
-                if (fields.includes('job')) {
-                    const age = user.age || faker.number.int({ min: ageRange[0], max: ageRange[1] });
-                    user.job = age < 30 ? faker.person.jobType() : faker.person.jobTitle();
-                }
-                users.push(user);
-            }
-            if (format === 'csv') {
-                let csv = fields.join(',') + '\n';
-                users.forEach(u => {
-                    const row = fields.map(f => {
-                        if (f === 'address') return `${u.address?.street || ''},${u.address?.city || ''},${u.address?.country || ''}`;
-                        return u[f] || '';
-                    }).join(',');
-                    csv += row + '\n';
-                });
-                res.header('Content-Type', 'text/csv');
-                res.send(csv);
-            } else {
-                res.json(users);
-            }
+            res.json(users);
         }
     } catch (error) {
         res.status(400).json({ error: error.message });
