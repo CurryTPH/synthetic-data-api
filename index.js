@@ -4,6 +4,7 @@ const { JsonStreamStringify } = require('json-stream-stringify');
 const bodyParser = require('body-parser');
 const rateLimit = require('express-rate-limit');
 const app = express();
+app.set('trust proxy', 1); // Add this line
 const port = process.env.PORT || 3000;
 
 // Middleware setup
