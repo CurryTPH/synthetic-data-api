@@ -13,12 +13,25 @@ app.use((req, res, next) => {
 
 const getCount = (queryCount) => {
     const count = parseInt(queryCount) || 5;
-    return Math.min(Math.max(count, 1), 10000); 
+    return Math.min(Math.max(count, 1), 10000);
+};
+
+const generateUserPool = (count) => {
+    const users = [];
+    for (let i = 0; i < count; i++) {
+        users.push({
+            id: faker.string.uuid(),
+            name: faker.person.fullName(),
+            email: faker.internet.email()
+        });
+    }
+    return users;
 };
 
 app.get('/users', (req, res) => {
     const count = getCount(req.query.count);
     const fields = req.query.fields ? req.query.fields.split(',') : ['name', 'email', 'age', 'address'];
+    const format = req.query.format || 'json';
     const users = [];
 
     for (let i = 0; i < count; i++) {
@@ -36,17 +49,30 @@ app.get('/users', (req, res) => {
         if (fields.includes('phone')) user.phone = faker.phone.number();
         users.push(user);
     }
-    res.json(users);
+
+    if (format === 'csv') {
+        let csv = 'name,email,age,street,city,country,phone\n';
+        users.forEach(u => {
+            csv += `${u.name || ''},${u.email || ''},${u.age || ''},${u.address?.street || ''},${u.address?.city || ''},${u.address?.country || ''},${u.phone || ''}\n`;
+        });
+        res.header('Content-Type', 'text/csv');
+        res.send(csv);
+    } else {
+        res.json(users);
+    }
 });
 
 app.get('/transactions', (req, res) => {
     const count = getCount(req.query.count);
+    const userPool = generateUserPool(Math.min(count, 100));
     const transactions = [];
 
     for (let i = 0; i < count; i++) {
+        const user = userPool[Math.floor(Math.random() * userPool.length)];
         const transaction = {
             id: faker.string.uuid(),
-            user: faker.person.fullName(),
+            userId: user.id,
+            userName: user.name,
             amount: faker.finance.amount(1, 1000, 2),
             currency: faker.finance.currencyCode(),
             date: faker.date.recent({ days: 30 }).toISOString(),
