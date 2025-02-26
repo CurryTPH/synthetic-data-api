@@ -1,14 +1,11 @@
 const express = require('express');
 const { faker } = require('@faker-js/faker');
 const app = express();
-const port = process.env.PORT || 3000; // Use Render's port or 3000 locally
-let requestCount = 0;
+const port = 3000;
 
 // API endpoint to generate synthetic user data
 app.get('/users', (req, res) => {
-  requestCount++; // Increment counter
-  console.log(`Total requests: ${requestCount}`);
-  const numberOfUsers = req.query.count || 5;
+  const numberOfUsers = req.query.count || 5; // Default to 5 users if no count is provided
   const users = [];
 
   for (let i = 0; i < numberOfUsers; i++) {
@@ -25,14 +22,10 @@ app.get('/users', (req, res) => {
     users.push(user);
   }
 
-  res.json(users);
+  res.json(users); // Send the data as JSON
 });
 
 // Start the server
 app.listen(port, () => {
   console.log(`API running at http://localhost:${port}`);
-<<<<<<< HEAD
 });
-=======
-});
->>>>>>> e285fbbb6a586fcf257b6d5c188fc7a1f1c40fad
