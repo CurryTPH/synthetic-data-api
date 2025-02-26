@@ -31,4 +31,8 @@ app.get('/users', (req, res) => {
 // Start the server
 app.listen(port, () => {
   console.log(`API running at http://localhost:${port}`);
+<<<<<<< HEAD
 });
+=======
+});
+>>>>>>> e285fbbb6a586fcf257b6d5c188fc7a1f1c40fad
