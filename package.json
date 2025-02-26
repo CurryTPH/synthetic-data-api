@@ -11,6 +11,9 @@
   "description": "",
   "dependencies": {
     "@faker-js/faker": "^9.5.0",
-    "express": "^4.21.2"
+    "body-parser": "^1.20.3",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "json-stream-stringify": "^3.1.6"
   }
 }
